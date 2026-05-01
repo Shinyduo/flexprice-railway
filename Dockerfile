@@ -20,7 +20,7 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /app/server /app/server
 COPY --from=typst /bin/typst /usr/local/bin/
-COPY --from=builder /app/internal/config ./config
+COPY --from=builder /app/internal ./internal
 COPY --from=builder /app/assets ./assets
 
 RUN chmod +x /app/server
