@@ -11,19 +11,38 @@ RUN CGO_ENABLED=0 GOOS=linux \
     go build -ldflags="-w -s" -trimpath \
       -o server cmd/server/main.go
 
+RUN CGO_ENABLED=0 GOOS=linux \
+    go build -ldflags="-w -s" -trimpath \
+      -o migrate cmd/migrate/main.go
+
 FROM ghcr.io/typst/typst:v0.13.1 AS typst
 
 FROM alpine:3.20
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates postgresql-client
 
 COPY --from=builder /app/server /app/server
+COPY --from=builder /app/migrate /app/migrate
 COPY --from=typst /bin/typst /usr/local/bin/
 COPY --from=builder /app/internal ./internal
 COPY --from=builder /app/assets ./assets
+COPY --from=builder /app/migrations ./migrations
 
-RUN chmod +x /app/server
+RUN chmod +x /app/server /app/migrate
+
+COPY <<'ENTRYPOINT' /app/entrypoint.sh
+#!/bin/sh
+set -e
+
+echo "Running Ent migrations..."
+/app/migrate --timeout 300 || echo "Migration failed, continuing..."
+
+echo "Starting server..."
+exec /app/server
+ENTRYPOINT
+
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8080
-CMD ["/app/server"]
+CMD ["/app/entrypoint.sh"]
